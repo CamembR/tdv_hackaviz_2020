@@ -25,17 +25,19 @@ Heatmap of "nuitees" per week.
 ```{r}
 tdvhackaviz2020::nuitees_td %>% 
     mutate(date = week(date)) %>%
-    ggplot(aes(date, dep, fill=nuitees)) + 
+    ggplot(aes(date, y=fct_reorder(dep,nuitees), fill=nuitees)) + 
     geom_tile() +
-    scale_fill_gradient(low="white", high="blue")
+    scale_fill_gradient(low="white", high="navy") +
+    theme_minimal()
 ```
 # Capacites
 
 ```{r}
 tdvhackaviz2020::capacites_sem_td %>%
-    ggplot(aes(sem, dep, fill=capa)) + 
+    ggplot(aes(sem, fct_reorder(dep,capa), fill=capa)) + 
     geom_tile() +
-    scale_fill_gradient(low="white", high="blue")
+    scale_fill_gradient(low="white", high="blue")+
+    theme_minimal()
 ```
 ```{r}
 skim(tdvhackaviz2020::capacites_td)
