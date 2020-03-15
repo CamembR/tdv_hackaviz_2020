@@ -1,0 +1,43 @@
+---
+title: "Exploration"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+# devtools::install_github("CamembR/tdvhackaviz2020")
+library(tidyverse)
+library(tdvhackaviz2020)
+library(skimr)
+library(lubridate)
+```
+
+# Nuitees 
+
+Heatmap of "nuitees" per week.
+
+- 5 deps have the most nights: 34, 66, 31, 30, 11
+- Seasonality is clear with empty vs full periods
+
+```{r}
+tdvhackaviz2020::nuitees_td %>% 
+    mutate(date = week(date)) %>%
+    ggplot(aes(date, dep, fill=nuitees)) + 
+    geom_tile() +
+    scale_fill_gradient(low="white", high="blue")
+```
+# Capacites
+
+```{r}
+tdvhackaviz2020::capacites_sem_td %>%
+    ggplot(aes(sem, dep, fill=capa)) + 
+    geom_tile() +
+    scale_fill_gradient(low="white", high="blue")
+```
+```{r}
+skim(tdvhackaviz2020::capacites_td)
+```
+
