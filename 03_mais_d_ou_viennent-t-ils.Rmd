@@ -1,0 +1,32 @@
+---
+title: "01_data_download"
+author: "C.R."
+date: "12/03/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 15, fig.height = 11)
+library(tidyverse)
+library(lubridate)
+#devtools::install_github("CamembR/tdvhackaviz2020")
+library(tdvhackaviz2020)
+library(here)
+library(skimr)
+library(tsibble)
+# library(timetk)
+library(ggridges)
+library(plotly)
+load(here("data/01_output.Rdata"))
+```
+
+
+## Jeu de données par_origines 
+
+Sur l'idée du plotly des origines, on explore les 10 origines les plus courantes sur chacun des departements, et on  avise du meilleur regroupement en catégories aggrégées : Est-ce  "dep_limitrophes", "dep_2éme_couronne", "dep_lointains", "pays_limitrophes", "pays_lointains" ou bien tout autre chose...
+
+```{r par_origines}
+top_20_orig_lst <- map(levels(par_origines_td$dep_dest), ~par_origines_td %>% filter(dep_dest==.x) %>% group_by(dep_org) %>% summarise(top_20_orig = sum(volume)) %>% arrange(desc(top_20_orig) ) %>% top_n(20)) %>% setNames(levels(par_origines_td$dep_dest))
+top_20_orig_df <-enframe(top_20_orig_lst, name = "dep_dest", value = "top_dep_orig") 
+print(top_20_orig_lst)
+```
