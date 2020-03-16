@@ -14,6 +14,8 @@ library(tdvhackaviz2020)
 library(here)
 library(skimr)
 library(tsibble)
+library(dygraphs)
+library(xts)
 # library(timetk)
 library(ggridges)
 library(plotly)
@@ -81,9 +83,9 @@ Hormis dans l'Aveyron et les Hautes Py., la capacité d'hébergement touristique
 ## nuités.xlsx
 ```{r nuitées}
 # skim(force(nuitees))# n'amène rien sur une time series au format long
-summary(force(nuitees))
+summary(nuitees)
 # TODO c'est une time-série, on fera un petit ridge-line plot: https://www.data-to-viz.com/graph/ridgeline.html
-nuitee_ts <- force(nuitees_td) %>% as_tsibble(index= date, key=dep)
+nuitee_ts <- nuitees_td %>% as_tsibble(index= date, key=dep)
 ggplot(nuitee_ts)+
   geom_line(aes(x=date,y=`nuitees`, color=dep), size=1)+
   scale_fill_continuous(guide = guide_legend()) +
@@ -109,15 +111,30 @@ Il y a une saisonnalité à la semaine qu'il faut relier aux évènements extér
 
 Est-ce qu'on peut imaginer un effet whaou sur un bubble plot animé style le fameux Gapminder ![Gapminder par gganimate](https://gganimate.com/reference/figures/README-unnamed-chunk-4-1.gif)  
 
+```{r dygraph nuitées}
+# apprends-t-on plus avec un zoom ?
+nuiteplus <- nuitees %>% na_if(0) %>% 
+  select(-total_occitanie) %>%
+  timetk::tk_augment_timeseries_signature() %>%
+  select(date, starts_with("dpt_"),jour_sem=wday.lbl) %>%
+  xts(. , order.by = .$date)                                                                                                                            
+dygraph(nuiteplus) %>% dyRangeSelector() %>%
+  dyHighlight(highlightCircleSize = 5, 
+              highlightSeriesBackgroundAlpha = 0.2,
+              hideOnMouseOut = FALSE) %>% 
+  dyLegend(width = 700, hideOnMouseOut = FALSE)
+```
+
+
 ## Jeu de données par_origines 
 ```{r par_origines}
-skim(force(par_origines))
+skim(par_origines)
 # il y a des duplicates. impossible de le faire rentrer dans ne time-series sans les enlever !
-origines_ts <- force(par_origines_td) %>%
-  mutate(dep_dest = fct_relevel(dep_dest, c("34","31","11","66","30","65","12","46","82","81","32","09","48")),
-         dep_org  = fct_reorder(dep_org,-volume)) %>% 
+origines_ts <- par_origines_td %>%
+  ungroup %>% 
+  mutate(dep_dest = fct_relevel(dep_dest, c("34","31","11","66","30","65","12","46","82","81","32","09","48"))) %>% 
   mutate_at("meteo",as.ordered) %>% 
-  group_by(date, dep_org, dep_dest) %>% summarise_all(~last(.)) %>% # filter duplicate
+  #group_by(date, dep_org, dep_dest) %>% summarise_all(~last(.)) %>% # filter duplicate
   as_tsibble(index= date, key=c("dep_org","dep_dest"))
 # un petit facet-plot pour la route
 ggvolume <-ggplot(origines_ts %>% filter(dep_org!="Autres"))+
@@ -144,7 +161,7 @@ Si c'est intéressant, on pourrait faire des catégories aggrégées genre "dep_
 ## Complements.
 
 ```{r complements}
-evenements <- force(comp_evenements) %>% 
+evenements <- comp_evenements %>% 
   mutate_at("num", as.integer)
 skim(evenements)
 #on ajoute des quelques évenements nationnaux dans les pics remarquables

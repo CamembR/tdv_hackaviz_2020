@@ -16,8 +16,6 @@ library(fasster)
 # library(timetk)
 library(ggridges)
 library(plotly)
-library(dygraphs)
-library(xts)
 #devtools::install_github("CamembR/tdvhackaviz2020")
 library(tdvhackaviz2020)
 load(here("data/01_output.Rdata"))
@@ -29,29 +27,6 @@ On doit pouvoir separer les touristes des travailleurs
 - entre saisonalité trimestrielle (ski / plage)
 
 ## nuités.xlsx
-```{r dygraph nuitées}
-# les NA dans les valeurs rends impossible la comparaison entre nuités et le fct_reorder bouhhh
-median_na <- function(x) {
-  median(x,na.rm = TRUE)
-}
-# le meme en ridge line plot
-ggplot(nuitee_ts)+
-  geom_ridgeline( aes(x = date, height = `nuitées`/1e5, y = fct_reorder(departement, `nuitées`, .fun=median_na)), alpha=0.5) +
-  scale_fill_continuous(guide = guide_legend()) +
-  theme(legend.position="bottom")+
-  ggtitle("nombre de nuitées (x100k)")
-# apprends-t-on plus avec un zoom ?
-nuiteplus <- nuitee %>%
-  select(-total_occitanie) %>%
-  timetk::tk_augment_timeseries_signature() %>%
-  select(date, starts_with("dpt_"),jour_sem=wday.lbl, sem_de_mois=mweek) %>%
-  xts(. , order.by = .$date)                                                                                                                            
-dygraph(nuiteplus) %>% dyRangeSelector() %>%
-  dyHighlight(highlightCircleSize = 5, 
-              highlightSeriesBackgroundAlpha = 0.2,
-              hideOnMouseOut = FALSE) %>% 
-  dyLegend(width = 400, hideOnMouseOut = FALSE)
-```
 
 ## regression saisonniere annuelle
 
