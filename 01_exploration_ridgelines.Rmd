@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.width = 15, fig.height = 11)
+knitr::opts_chunk$set(echo = TRUE, fig.width = 11, fig.height = 7)
 library(tidyverse)
 library(lubridate)
 #devtools::install_github("CamembR/tdvhackaviz2020")
@@ -45,7 +45,8 @@ ggplot(hebergement_ts)+
 ggplot(hebergement_ts)+
   geom_ridgeline( aes(x = date, height = touristes/1e6, y = fct_reorder(dep,touristes)), alpha=0.7) +
   scale_fill_continuous(guide = guide_legend()) +
-  theme(legend.position="bottom") +
+  theme(legend.position="bottom") + 
+  scale_x_date(expand = c(0,0)) +
   ggtitle("Mais qui dors ou et quand ?", subtitle ="Occupation des hébergements touristiques par departement") + ylab("Nombre de touristes par semaine (Millions) ")
 
 ```
@@ -74,7 +75,8 @@ ggplot(hebergement_pcent_ts)+
   geom_ridgeline( aes(x = date, height = touristes, y = fct_reorder(dep,touristes)), alpha=0.5, color="darkred", min_height = .5, scale=.5) +
   geom_ridgeline( aes(x = date, height = 1, y = fct_reorder(dep,touristes)), alpha=0.01, color="black", scale=.5, size=0.1) +
   scale_fill_continuous(guide = guide_legend()) +
-  theme(legend.position="bottom") +
+  theme(legend.position="bottom") + 
+  scale_x_date(expand = c(0,0)) +
   ggtitle("Quelle saison touristique dans chaque département ?", subtitle="Occupation des hébergements touristiques par departement, 100 % représenté par la fine ligne noire, on ne représente pas en dessous de 50%") + ylab("Nombre de voyageurs par semaine (pourcent) ")
 ```
 Hormis dans l'Aveyron et les Hautes Py., la capacité d'hébergement touristique est toujours dépassée. On a donc capturé ici des voyageurs qui ne sont pas des touristes.
@@ -100,7 +102,8 @@ ggplot(nuitee_ts)+
   geom_ridgeline( aes(x = date, height = nuitees/1e5, y = fct_reorder(dep, `nuitees`, .fun=median_na)), alpha=0.5) +
   scale_fill_continuous(guide = guide_legend()) +
   theme(legend.position="bottom")+
-  ggtitle("nombre de nuitées (x100k)")
+  ggtitle("nombre de nuitées (x100k)") + 
+  scale_x_date(expand = c(0,0)) 
 
 ```
 

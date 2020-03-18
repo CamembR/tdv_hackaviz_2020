@@ -6,15 +6,18 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.width = 15, fig.height = 11)
+knitr::opts_chunk$set(echo = TRUE, fig.width = 9, fig.height = 7)
 library(tidyverse)
 library(lubridate)
 library(here)
 library(tsibble)
+library(feasts)
 library(fable)
+library(fabletools)
 library(fasster)
 # library(timetk)
 library(ggridges)
+library(ggrepel)
 library(plotly)
 #devtools::install_github("CamembR/tdvhackaviz2020")
 library(tdvhackaviz2020)
@@ -26,10 +29,94 @@ On doit pouvoir separer les touristes des travailleurs
 - entre semaine et WE (travailleur / maison secondaire )
 - entre saisonalité trimestrielle (ski / plage)
 
-## nuités.xlsx
+# Les differences de saisonnalité sont elles réelles ? 
+On constate visuellement une faible saisonnalité sur la courbe du dep_31. Mais est-ce confirmé par le calcul, et est-ce le cas pour d'autres departements ?
+```{r}
+nuitees_stlf <-nuitee_ts %>%  features(nuitees, feat_stl)
+nuitees_stlf %>% arrange(desc(trend_strength))
+nuitees_stlf %>% arrange(seasonal_peak_week)
+```
 
-## regression saisonniere annuelle
+```{r}
+nuitees_stlf %>%
+  ggplot(aes(x = trend_strength, y = seasonal_strength_week, label=dep)) +
+  geom_point()+
+  geom_text_repel()
+```
 
-## regression a saisonnalité hebdonadaire
+Ah ! la Haute Garonne se distingue bien largement de ses voisins d'Occitanie. On creusera par origine pour decouvrir d'ou viennent les voyageurs qui contribuent à ça.
+
+# Regression a saisonnalité hebdonadaire
+
+Voyons dans les faits ce qu'on mesure par une visualisation de la decomposition : 
+```{r need rework}
+nuitees_stlmod <- nuitees_td %>%
+  as_tsibble(index= date, key=dep) %>% 
+  group_by_key() %>%
+  fill_gaps() %>% 
+  ungroup %>% 
+  tidyr::fill(nuitees, dep, .direction = "down") %>% 
+  model(STL(nuitees ~ season(7) ))
+components(nuitees_stlmod) %>% autoplot + 
+  theme(legend.position = "bottom") + 
+  scale_x_date(expand = c(0,0))
+```
+C'est très curieux, le distingo s'établit à l'oeil sur la tendance, pas sur la composante hebdomadaire. 
+Relançons la meme analyse sur la tendance seulement i.e. sur le dataset capacite
+```{r}
+hebergement_stlmod <-hebergement_ts %>% 
+  model(STL(touristes ~ season(window = 365/4))) 
+components(hebergement_stlmod) %>% autoplot + 
+  theme(legend.position = "bottom") + 
+  scale_x_date(expand = c(0,0))
+```
+
+```{r}
+nuitee_ts %>% filter(dep=="31") %>% gg_tsdisplay(nuitees)
+```
+
+On n'apprends rien...
+
+# origines.xlsx
+
+## regression saisonniere annuelle par departement source et origine
+
+```{r}
+# TODO errors (2 unique) encountered for ets
+#[936] .data contains implicit gaps in time. You should check your data and convert implicit gaps into explicit missing values using `tsibble::fill_gaps()` if required.
+origines_ts <- origines_ts %>%
+  group_by_key() %>%
+  fill_gaps() %>% 
+  tidyr::fill(volume, .direction = "down")
+```
+
+Le package `feats` doit nous donner naturellement des viz de la mort:
+```{r}
+origines_feats <-origines_ts %>% features(volume, feat_stl)
+origines_feats %>%
+  ggplot(aes(x = trend_strength, y = seasonal_strength_week) ) +
+  geom_point(alpha=.5) +
+  stat_density_2d(aes(fill = after_stat(nlevel)), geom = "polygon") +
+  facet_wrap(vars(dep_dest))
+```
+
+c'est vraiement beau, mais j'ai pas l'histoire a raconter avec...
+```{r}
+
+```
+
+
+```{r eval=FALSE, include=FALSE}
+# la grosse berta : on entraine 1384 modeles de forcasting
+fit <- origines_ts %>% filter(dep_org!="Autres") %>%
+  model(
+    ets = ETS(volume ~ trend("A")),
+    # arima = ARIMA(volume),
+    stl = STL(volume ~ season(window = Inf))
+  )
+fit
+
+```
+
 
 ## regression a saisonnalité trimestrielle
