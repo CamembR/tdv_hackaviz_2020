@@ -1,5 +1,5 @@
 ---
-title: "0é_on_separe_les_touristes"
+title: "02_on_separe_les_touristes"
 author: "C.R."
 date: "12/03/2020"
 output: html_document
@@ -36,6 +36,7 @@ nuitees_stlf <-nuitee_ts %>%  features(nuitees, feat_stl)
 nuitees_stlf %>% arrange(desc(trend_strength))
 nuitees_stlf %>% arrange(seasonal_peak_week)
 ```
+Oumpf, personne n'aurait envie de lire des tableaux aussi absconts, faisons donc un plot !
 
 ```{r}
 nuitees_stlf %>%
@@ -44,12 +45,12 @@ nuitees_stlf %>%
   geom_text_repel()
 ```
 
-Ah ! la Haute Garonne se distingue bien largement de ses voisins d'Occitanie. On creusera par origine pour decouvrir d'ou viennent les voyageurs qui contribuent à ça.
+Ah ! Oui ! la Haute Garonne se distingue bien largement de ses voisins d'Occitanie. On creusera par origine pour decouvrir d'ou viennent les voyageurs qui contribuent à ça.
 
-# Regression a saisonnalité hebdonadaire
+# Regression a saisonnalité hebdromadaire
 
-Voyons dans les faits ce qu'on mesure par une visualisation de la decomposition : 
-```{r need rework}
+Voyons dans les faits ce qu'on mesure par une visualisation de la décomposition : 
+```{r need rework, echo=FALSE}
 nuitees_stlmod <- nuitees_td %>%
   as_tsibble(index= date, key=dep) %>% 
   group_by_key() %>%
@@ -57,25 +58,65 @@ nuitees_stlmod <- nuitees_td %>%
   ungroup %>% 
   tidyr::fill(nuitees, dep, .direction = "down") %>% 
   model(STL(nuitees ~ season(7) ))
+
 components(nuitees_stlmod) %>% autoplot + 
   theme(legend.position = "bottom") + 
+  theme_minimal()+
   scale_x_date(expand = c(0,0))
+
+# components(nuitees_stlmod %>% filter(dep=="31")) %>% autoplot + 
+#   theme(legend.position = "bottom") + 
+#   theme_minimal()+
+#   scale_x_date(expand = c(0,0))
+
 ```
 C'est très curieux, le distingo s'établit à l'oeil sur la tendance, pas sur la composante hebdomadaire. 
+
+Pour pouvoir dire "Cette serie c'est -majoritairement- des travailleurs" Il faudrait avoir un pattern du genre celui-ci ![https://slides.mitchelloharawild.com/user2019/#10](https://slides.mitchelloharawild.com/user2019/figure/tourism-purpose-plot-output-1.svg)  
+i.e. avec une influence négative des weekends, qund les usages des déplacements sont clairement séparés.. Ici, qqsoit la série, c'est un mélange...
+
+```{r composante hebdomadaire en Haute-Garonne, echo=FALSE}
+nuite_seas31 <- components(nuitees_stlmod %>% filter(dep=="31")) %>%
+  select(date, season_7) %>%
+  mutate(jour_sem = wday(date, label=T, locale = "fr_FR.UTF-8",week_start =1 ),
+         we = jour_sem %in% c("Sat","Sun"))
+
+autoplot(nuite_seas31, alpha=0.3) +
+  geom_point(aes(x=date,y=season_7, color=jour_sem))+
+  ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 31?", subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers la Haute-Garonne") +
+  theme_minimal()+
+  scale_x_date(expand = c(0,0)) 
+```
+```{r composante Hebdomadaire ds le 34, echo=FALSE}
+nuite_seas34 <- components(nuitees_stlmod %>% filter(dep=="34")) %>%
+  select(date, season_7) %>%
+  mutate(jour_sem = wday(date, label=T, locale = "fr_FR.UTF-8" ,week_start =1),
+         we = jour_sem %in% c("Sat","Sun"))
+
+autoplot(nuite_seas34, alpha=0.3) +
+  geom_point(aes(x=date,y=season_7, color=jour_sem))+
+  ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 34?", subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers l'Hérault") +
+  theme_minimal()+
+  scale_x_date(expand = c(0,0)) 
+```
+On voit très bien qu'il y a quelque chose à dire ici ! On a meme envie de balancer des small multiples sur chaque departement ! Ça donne meme envie de le faire sur chaque département d'origine, meme si ça risque de faire un pâté...
+
+## regression a saisonnalité mensuelle
+
 Relançons la meme analyse sur la tendance seulement i.e. sur le dataset capacite
 ```{r}
 hebergement_stlmod <-hebergement_ts %>% 
-  model(STL(touristes ~ season(window = 365/4))) 
+  model(STL(touristes ~ season(window = 31))) 
 components(hebergement_stlmod) %>% autoplot + 
   theme(legend.position = "bottom") + 
   scale_x_date(expand = c(0,0))
 ```
 
-```{r}
+```{r include=FALSE}
 nuitee_ts %>% filter(dep=="31") %>% gg_tsdisplay(nuitees)
 ```
 
-On n'apprends rien...
+On n'apprends rien avec ce gg_tsdisplay...
 
 # origines.xlsx
 
@@ -95,9 +136,9 @@ Le package `feats` doit nous donner naturellement des viz de la mort:
 origines_feats <-origines_ts %>% features(volume, feat_stl)
 origines_feats %>%
   ggplot(aes(x = trend_strength, y = seasonal_strength_week) ) +
-  geom_point(alpha=.5) +
+  geom_point() +
   stat_density_2d(aes(fill = after_stat(nlevel)), geom = "polygon") +
-  facet_wrap(vars(dep_dest))
+  facet_wrap(vars(dep_dest)) 
 ```
 
 c'est vraiement beau, mais j'ai pas l'histoire a raconter avec...
@@ -117,6 +158,3 @@ fit <- origines_ts %>% filter(dep_org!="Autres") %>%
 fit
 
 ```
-
-
-## regression a saisonnalité trimestrielle
