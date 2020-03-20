@@ -1,0 +1,121 @@
+---
+title: "04_des_departements_avec_diverses_typologies"
+author: "C.R."
+date: "20/03/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 9, fig.height = 7)
+library(tidyverse)
+library(lubridate)
+library(here)
+library(tsibble)
+library(feasts)
+library(fable)
+library(fabletools)
+library(fasster)
+# library(timetk)
+library(ggridges)
+library(ggrepel)
+library(plotly)
+#devtools::install_github("CamembR/tdvhackaviz2020")
+library(tdvhackaviz2020)
+load(here("data/01_output.Rdata"))
+```
+# Sur la base des nuitées
+On doit pouvoir separer les touristes des travailleurs
+- entre saisonnalité annuelle et tendance
+- entre semaine et WE (travailleur / maison secondaire )
+- entre saisonalité trimestrielle (ski / plage)
+
+# Les differences de saisonnalité sont elles réelles ? 
+On constate visuellement une faible saisonnalité sur la courbe du dep_31. Mais est-ce confirmé par le calcul, et est-ce le cas pour d'autres departements ?
+
+```{r}
+nuitees_stlf <-nuitee_ts %>%  features(nuitees, feat_stl)
+nuitees_stlf["cluster"] <- kmeans(nuitees_stlf %>% select(trend_strength, seasonal_strength_week),
+                                 centers=3)$cluster %>% as.factor
+nuitees_stlf %>%
+  ggplot(aes(x = trend_strength, y = seasonal_strength_week, label=dep, color=cluster)) +
+  geom_point(size=3)+
+  geom_text_repel()+ggtitle("Comment distinguer les départements ?", subtitle = "Force de la composante hebdomadaire par rapport à de la composante lissée des nuitées dans chaque départements d'Occitanie (2018)")+
+  xlab("Force de la composante tendentielle") + 
+  ylab("Force de la variation hebdomadaire")
+```
+
+Ah ! Oui ! la Haute Garonne se distingue bien largement de ses voisins d'Occitanie. Et les autres départements se repartissent naturellement (kMeans) en daux groupes.
+
+# Regression a saisonnalité hebdromadaire
+
+Voyons dans les faits ce qu'on mesure par une visualisation de la décomposition sur chacun des groupes: 
+```{r need rework, echo=FALSE}
+nuitees_stlmod <- nuitees_td %>%
+  as_tsibble(index= date, key=dep) %>% 
+  group_by_key() %>%
+  fill_gaps() %>% 
+  ungroup %>% 
+  tidyr::fill(nuitees, dep, .direction = "down") %>% 
+  model(STL(nuitees ~ season(7) ))
+```
+C'est très curieux, le distingo s'établit à l'oeil sur la tendance, pas sur la composante hebdomadaire. 
+
+```{r composante hebdomadaire en Haute-Garonne, echo=FALSE}
+nuite_seas31 <- components(nuitees_stlmod %>% filter(dep=="31")) %>%
+  select(date, composante_hebdomadaire = season_7) %>%
+  mutate(jour_sem = wday(date, label=T, locale = "fr_FR.UTF-8",week_start =1 ),
+         we = jour_sem %in% c("Sam","Dim"))
+
+autoplot(nuite_seas31, alpha=0.3, .vars = composante_hebdomadaire) +
+  geom_point(aes(x=date,y=composante_hebdomadaire, color=jour_sem, shape=we), size=3)+
+  ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 31?", 
+          subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers la Haute-Garonne") +
+  ylab(" composante_hebdomadaire\nDéparts <------- | ---> Arrivées")+
+  theme_minimal()+
+  scale_x_date(expand = c(0,0)) 
+```
+```{r composante Hebdomadaire ds le 34, echo=FALSE}
+nuite_seas34 <- components(nuitees_stlmod %>% filter(dep=="34")) %>%
+  select(date, composante_hebdomadaire = season_7) %>%
+  mutate(jour_sem = wday(date, label=T, locale = "fr_FR.UTF-8" ,week_start =1),
+         we = jour_sem %in% c("Sam","Dim"))
+
+autoplot(nuite_seas34, alpha=0.3, .vars = composante_hebdomadaire) +
+  geom_point(aes(x=date,y=composante_hebdomadaire, color=jour_sem, shape=we), size=3)+
+  ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 34?", 
+          subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers l'Hérault") +
+  ylab(" composante_hebdomadaire\nDéparts <------- | ---> Arrivées")+
+  theme_minimal()+
+  scale_x_date(expand = c(0,0)) 
+```
+On voit très bien qu'il y a quelque chose à dire ici ! On a meme envie de balancer des small multiples sur chaque departement ! Ça donne meme envie de le faire sur chaque département d'origine, meme si ça risque de faire un pâté...
+
+```{r composante Hebdomadaire ds le 81, echo=FALSE}
+nuite_seas81 <- components(nuitees_stlmod %>% filter(dep=="81")) %>%
+  select(date, composante_hebdomadaire = season_7) %>%
+  mutate(jour_sem = wday(date, label=T, locale = "fr_FR.UTF-8" ,week_start =1),
+         we = jour_sem %in% c("Sam","Dim"))
+
+autoplot(nuite_seas81, alpha=0.3, .vars = composante_hebdomadaire) +
+  geom_point(aes(x=date,y=composante_hebdomadaire, color=jour_sem, shape=we), size=3)+
+  ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 81?", 
+          subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers le Tarn-et-Garonne") +
+  ylab(" composante_hebdomadaire\nDéparts <------- | ---> Arrivées")+
+  theme_minimal()+
+  scale_x_date(expand = c(0,0)) 
+```
+
+```{r composante hebdomadaire en 11, echo=FALSE}
+nuite_seas11 <- components(nuitees_stlmod %>% filter(dep=="11")) %>%
+  select(date, composante_hebdomadaire = season_7) %>%
+  mutate(jour_sem = wday(date, label=T, locale = "fr_FR.UTF-8",week_start =1 ),
+         we = jour_sem %in% c("Sam","Dim"))
+
+autoplot(nuite_seas11, alpha=0.3, .vars = composante_hebdomadaire) +
+  geom_point(aes(x=date,y=composante_hebdomadaire, color=jour_sem, shape=we), size=3)+
+  ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 11?", 
+          subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers l'Aude") +
+  ylab(" composante_hebdomadaire\nDéparts <------- | ---> Arrivées")+
+  theme_minimal()+
+  scale_x_date(expand = c(0,0)) 
+```
