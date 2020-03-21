@@ -21,11 +21,15 @@ library(ggridges)
 library(plotly)
 ```
 
+```{r data prep, include=FALSE}
+
+```
+
 ## Capacité et usage des hébergements touristiques
 
 ```{r capacite hebergement}
 #skim(force(capacites)) # n'amène rien sur une time series au format long
-summary(force(capacites))
+#summary(force(capacites))
 # TODO c'est une time-série, on fera un petit ridge-line plot: https://www.data-to-viz.com/graph/ridgeline.html
 hebergement_ts <- force(capacites) %>%
   select(dep,starts_with("sem_")) %>% 
@@ -37,22 +41,30 @@ hebergement_ts <- force(capacites) %>%
 # on plot pour voir
 ggplot(hebergement_ts)+
   geom_line(aes(x=date,y=touristes/1e6, color=dep), size=1)+
+  geom_area(data=vacances_tsbl() %>%  mutate(vacances = as.numeric(vacances) * max(hebergement_ts$touristes , na.rm = TRUE)/1e6), 
+            aes(x = date, y = vacances),
+            position=position_dodge(1), alpha = 0.1) + 
   scale_fill_continuous(guide = guide_legend()) +
   theme_minimal()+
   theme(legend.position="bottom") +
-  ggtitle("Capacité occupée par departement et par semaine") + ylab("Nombre de touristes (Millions) par semaine")
+  ggtitle("Capacité occupée par departement et par semaine") + ylab("Nombre de voyageurs hebdomadaires (Millions)")
 # le meme en ridge line plot
 ggplot(hebergement_ts)+
   geom_ridgeline( aes(x = date, height = touristes/1e6, y = fct_reorder(dep,touristes)), alpha=0.7) +
+  geom_area(data=vacances_tsbl()  %>% mutate(vacances = as.numeric(vacances) *15.6), 
+            aes(x = date, y = vacances),
+            position=position_dodge(1), alpha = 0.1) +
+  ggtitle("Mais qui dort où et quand ?", subtitle ="Occupation des hébergements touristiques par département") + 
+  ylab("Nombre de voyageurs hebdomadaires (Millions)") + 
   scale_fill_continuous(guide = guide_legend()) +
   theme(legend.position="bottom") + 
-  scale_x_date(expand = c(0,0)) +
-  ggtitle("Mais qui dors ou et quand ?", subtitle ="Occupation des hébergements touristiques par departement") + ylab("Nombre de touristes par semaine (Millions) ")
-
+  scale_x_date(expand = c(0.005,0.005))+
+  theme_minimal()
 ```
-Un ordre s'impose parmi les départements pour rendre ça beau... Ici, c'est l'ordre imposé par le nombre de touristes qui s'applique. On voit une difference entre les departements à tourisme saisonnier et la haute-garonne
+~~Un ordre s'impose parmi les départements pour rendre ça beau... Ici, c'est l'ordre imposé par le nombre de touristes qui s'applique.~~
+On voit une difference entre les departements à tourisme saisonnier et la Haute-Garonne
 
-## Nuitées occuppées relativement à la capacité totale
+## Nuitées occupées relativement à la capacité totale
 
 Si on veut developper le tourisme, il faut remplir les trous... On a le total de capacité alors on y va
 ```{r}
@@ -72,12 +84,16 @@ hebergement_pcent_ts <-  force(capacites) %>%
 Sont-ils bien tous des touristes ?
 ```{r}
 ggplot(hebergement_pcent_ts)+
-  geom_ridgeline( aes(x = date, height = touristes, y = fct_reorder(dep,touristes)), alpha=0.5, color="darkred", min_height = .5, scale=.5) +
+  geom_ridgeline( aes(x = date, height = touristes, y = fct_reorder(dep,touristes)), alpha=0.5, color="darkred", min_height = .3, scale=.5) +
   geom_ridgeline( aes(x = date, height = 1, y = fct_reorder(dep,touristes)), alpha=0.01, color="black", scale=.5, size=0.1) +
+  geom_area(data=vacances_tsbl()  %>% mutate(vacances = as.numeric(vacances) *15), 
+            aes(x = date, y = vacances),
+            position=position_dodge(1), alpha = 0.1) +
+  ggtitle("Quelle saison touristique dans chaque département ?", subtitle="Taux d'occupation des hébergements touristiques par departement, 100 % représenté par la fine ligne noire, on ne représente pas en dessous de 30%") + ylab("Nombre de voyageurs par semaine (pourcent) ")+  
   scale_fill_continuous(guide = guide_legend()) +
   theme(legend.position="bottom") + 
   scale_x_date(expand = c(0,0)) +
-  ggtitle("Quelle saison touristique dans chaque département ?", subtitle="Occupation des hébergements touristiques par departement, 100 % représenté par la fine ligne noire, on ne représente pas en dessous de 50%") + ylab("Nombre de voyageurs par semaine (pourcent) ")
+  theme_minimal()
 ```
 Hormis dans l'Aveyron et les Hautes Py., la capacité d'hébergement touristique est toujours dépassée. On a donc capturé ici des voyageurs qui ne sont pas des touristes.
 
@@ -90,6 +106,9 @@ summary(nuitees)
 nuitee_ts <- nuitees_td %>% as_tsibble(index= date, key=dep)
 ggplot(nuitee_ts)+
   geom_line(aes(x=date,y=`nuitees`, color=dep), size=1)+
+  geom_area(data=vacances_tsbl() %>%  mutate(vacances = as.numeric(vacances) *max(nuitee_ts$nuitees, na.rm = T)), 
+            aes(x = date, y = vacances),
+            position=position_dodge(1), alpha = 0.1) +
   scale_fill_continuous(guide = guide_legend()) +
   theme_minimal()+
   theme(legend.position="bottom")
@@ -100,10 +119,14 @@ median_na <- function(x) {
 # le meme en ridge line plot
 ggplot(nuitee_ts)+
   geom_ridgeline( aes(x = date, height = nuitees/1e5, y = fct_reorder(dep, `nuitees`, .fun=median_na)), alpha=0.5) +
+  geom_area(data=vacances_tsbl()  %>% mutate(vacances = as.numeric(vacances) *17), 
+            aes(x = date, y = vacances),
+            position=position_dodge(1), alpha = 0.1) +
+  ggtitle("nombre de nuitées (x100k)") + 
   scale_fill_continuous(guide = guide_legend()) +
   theme(legend.position="bottom")+
-  ggtitle("nombre de nuitées (x100k)") + 
-  scale_x_date(expand = c(0,0)) 
+  scale_x_date(expand = c(0,0)) +
+  theme_minimal()
 
 ```
 
@@ -112,20 +135,28 @@ Là encore même distingo entre le 31 et les autres departements.
 
 Il y a une saisonnalité à la semaine qu'il faut relier aux évènements extérieurs
 
-Est-ce qu'on peut imaginer un effet whaou sur un bubble plot animé style le fameux Gapminder ![Gapminder par gganimate](https://gganimate.com/reference/figures/README-unnamed-chunk-4-1.gif)  
+Est-ce qu'on peut imaginer un effet whaou sur un bubble plot animé style le fameux Gapminder ![Gapminder par gganimate] ? Non ? bon...
+
 
 ```{r dygraph nuitées}
-# apprends-t-on plus avec un zoom ?
-nuiteplus <- nuitees %>% na_if(0) %>% 
+# # apprends-t-on plus avec un zoom ?
+nuiteplus <- nuitees %>% na_if(0) %>%
   select(-total_occitanie) %>%
   timetk::tk_augment_timeseries_signature() %>%
   select(date, starts_with("dpt_"),jour_sem=wday.lbl) %>%
-  xts(. , order.by = .$date)                                                                                                                            
+  xts(. , order.by = .$date)
+
 dygraph(nuiteplus) %>% dyRangeSelector() %>%
   dyHighlight(highlightCircleSize = 5, 
               highlightSeriesBackgroundAlpha = 0.2,
               hideOnMouseOut = FALSE) %>% 
-  dyLegend(width = 700, hideOnMouseOut = FALSE)
+  dyLegend(width = 700, hideOnMouseOut = FALSE) %>% 
+  dyShading(from = "2018-01-01", to = "2018-01-07") %>%
+  dyShading(from = "2018-02-10", to = "2018-02-25") %>%
+  dyShading(from = "2018-04-07", to = "2018-04-22") %>%
+  dyShading(from = "2018-07-07", to = "2018-09-02") %>%
+  dyShading(from = "2018-10-20", to = "2018-11-04") %>%
+  dyShading(from = "2018-12-22", to = "2018-12-31")
 ```
 
 
@@ -135,26 +166,18 @@ skim(par_origines)
 # il y a des duplicates. impossible de le faire rentrer dans ne time-series sans les enlever !
 origines_ts <- par_origines_td %>%
   ungroup %>% 
-  mutate(dep_dest = fct_relevel(dep_dest, c("34","31","11","66","30","65","12","46","82","81","32","09","48"))) %>% 
+  mutate(dep = fct_relevel(dep, c("34","31","11","66","30","65","12","46","82","81","32","09","48"))) %>% 
   mutate_at("meteo",as.ordered) %>% 
   #group_by(date, dep_org, dep_dest) %>% summarise_all(~last(.)) %>% # filter duplicate
-  as_tsibble(index= date, key=c("dep_org","dep_dest"))
+  as_tsibble(index= date, key=c("dep_org","dep"))
 # un petit facet-plot pour la route
 ggvolume <-ggplot(origines_ts %>% filter(dep_org!="Autres"))+
   geom_line(aes(x=date,y=`volume`/1e3, color=dep_org), size=.4, alpha=.6)+
-  facet_wrap("dep_dest") +
+  facet_wrap("dep") +
   scale_fill_continuous(guide = guide_legend()) + ylim(0,25) +
   ggtitle("Mais d'où viennent-ils", subtitle = "Origine identifiée des voyageurs dans chaque departement visité")+
   theme_minimal()+ theme(legend.position="none")+ scale_color_viridis_d(option="E") 
 ggplotly(ggvolume)
-# un petit facet-plot des temperatures (qui n'a aucun interêt)
-ggplot(origines_ts )+
-  geom_line(aes(x=date,y=temp_midi), color="navy", alpha=0.6)+
-  facet_wrap("dep_dest") +
-  scale_fill_continuous(guide = guide_legend()) +
-  theme_minimal()+
-  theme(legend.position="none")
-
 ```
 
 Globalement, on n'y voit rien... Un phénomene intéressant d'une origine spécifique des voyageurs de loin  majoritaire en Haute-garonne... ~~~Va savoir laquelle sur un graphe, Charles...~~~ Avec plotly, on sait que c'est "Autres". Super Michel...
@@ -167,11 +190,11 @@ Si c'est intéressant, on pourrait faire des catégories aggrégées genre "dep_
 evenements <- comp_evenements %>% 
   mutate_at("num", as.integer)
 skim(evenements)
-#on ajoute des quelques évenements nationnaux dans les pics remarquables
-fr_evenemt <- tibble(dep = c("ts","ts" ),
-                     evt = c("Rentrée scolaire","Gilets Jaunes A-1"),
-                     deb = c("2018-09-04","2018-11-17") %>% ymd,
-                     fin = c("2018-09-04","2018-11-18") %>% ymd
+#on ajoute des quelques évenements nationaux dans les pics remarquables
+fr_evenemt <- tibble(dep = c("ts","ts","ts","ts", "ts" ),
+                     evt = c("Quart-finale Mondial Foot","Demi-finale Mondial Foot","Finale Mondial Foot","Rentrée scolaire","Gilets Jaunes A-1"),
+                     deb = c("2018-07-06","2018-07-10","2018-07-15","2018-09-04","2018-11-17") %>% ymd,
+                     fin = c("2018-07-06","2018-07-10","2018-07-15","2018-09-04","2018-11-18") %>% ymd
                      ) %>%
   mutate(dep = str_replace(dep,"ts","34-31-11-66-30-65-12-46-82-81-32-09-48")) %>%
   separate_rows(dep,sep="-")
