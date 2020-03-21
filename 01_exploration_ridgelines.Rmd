@@ -201,3 +201,7 @@ fr_evenemt <- tibble(dep = c("ts","ts","ts","ts", "ts" ),
 evenements <- bind_rows(evenements, fr_evenemt)
 ```
 
+```{r eval=FALSE, include=FALSE}
+save(hebergement_ts, hebergement_pcent_ts, nuitee_ts, origines_ts, file=here("data/01_output.Rdata"))
+```
+

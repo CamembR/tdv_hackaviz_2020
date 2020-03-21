@@ -29,6 +29,36 @@ On doit pouvoir separer les touristes des travailleurs
 - entre semaine et WE (travailleur / maison secondaire )
 - entre saisonalité trimestrielle (ski / plage)
 
+## modele naif
+Les travailleurs ne travaillent pas pendant les vacances (...), donc le mieux à faire est qu'on enleve la moyenne des deplacements hors vacances scolaire à la courbe de nuitées.
+```{r data prep}
+vacances_tsbl <- vacances_tsbl() %>% 
+  mutate(vacances = as.numeric(vacances) * max(nuitees_tsbl()$nuitees , na.rm = TRUE))
+# avoid the 13 errors (1 unique) encountered for STL(nuitees ~ season(window = Inf))
+# [13] STL decomposition does not support series with missing values.
+nuitees_ts_filled <- nuitees_td %>%
+  as_tsibble(index= date, key=dep) %>% 
+  group_by_key() %>%
+  fill_gaps() %>% 
+  ungroup %>% 
+  tidyr::fill(nuitees, dep, .direction = "down") 
+```
+
+
+```{r eval=FALSE, include=FALSE}
+# TODO Modele naif sur chaque departement
+nuitee_touriste <- nuitees_ts_filled %>% 
+    model(
+      hybrid = decomposition_model(
+        STL( nuitees ~ season(window = 7)),
+        ETS(trend + remainder),
+        SNAIVE(season_week)
+      )
+    ) 
+autoplot(nuitee_touriste)
+```
+
+
 # Les differences de saisonnalité sont elles réelles ? 
 On constate visuellement une faible saisonnalité sur la courbe du dep_31. Mais est-ce confirmé par le calcul, et est-ce le cas pour d'autres departements ?
 ```{r}
@@ -51,15 +81,12 @@ Ah ! Oui ! la Haute Garonne se distingue bien largement de ses voisins d'Occitan
 
 Voyons dans les faits ce qu'on mesure par une visualisation de la décomposition : 
 ```{r need rework, echo=FALSE}
-nuitees_stlmod <- nuitees_td %>%
-  as_tsibble(index= date, key=dep) %>% 
-  group_by_key() %>%
-  fill_gaps() %>% 
-  ungroup %>% 
-  tidyr::fill(nuitees, dep, .direction = "down") %>% 
+nuitees_stlmod <- nuitees_ts_filled %>% 
   model(STL(nuitees ~ season(7) ))
 
-components(nuitees_stlmod) %>% autoplot + 
+nuitees_stlmod %>%
+  components() %>%
+  autoplot + 
   theme(legend.position = "bottom") + 
   theme_minimal()+
   scale_x_date(expand = c(0,0))
@@ -68,7 +95,6 @@ components(nuitees_stlmod) %>% autoplot +
 #   theme(legend.position = "bottom") + 
 #   theme_minimal()+
 #   scale_x_date(expand = c(0,0))
-
 ```
 C'est très curieux, le distingo s'établit à l'oeil sur la tendance, pas sur la composante hebdomadaire. 
 
@@ -125,20 +151,33 @@ On n'apprends rien avec ce gg_tsdisplay...
 ```{r}
 # TODO errors (2 unique) encountered for ets
 #[936] .data contains implicit gaps in time. You should check your data and convert implicit gaps into explicit missing values using `tsibble::fill_gaps()` if required.
-origines_ts <- origines_ts %>%
+origines_ts <- origines_ts %>% 
   group_by_key() %>%
   fill_gaps() %>% 
   tidyr::fill(volume, .direction = "down")
+
+origine_ts_mean <- origines_ts %>% as_tibble %>% group_by(dep_org, dep) %>% summarize_at("volume", mean, na.rm=T)
 ```
 
 Le package `feats` doit nous donner naturellement des viz de la mort:
 ```{r}
-origines_feats <-origines_ts %>% features(volume, feat_stl)
+# origines_feats <-origines_ts %>% features(volume, feat_stl)
+# TODO ajoutons l'importance des arrivees sur chacun des points pour en obtenir l'importance
+# BUG les series ne sont pas assemblables ( pas d'ordonnancement commun sur les facteurs)
+origines_feats <-bind_cols(
+  origines_ts %>% features(volume, feat_stl, )%>% arrange(.by_group=T),
+  origine_ts_mean %>% select(volume)
+  )
+# TODO consider volume in the stat_density_2d
 origines_feats %>%
-  ggplot(aes(x = trend_strength, y = seasonal_strength_week) ) +
+  ggplot(aes(x = trend_strength, y = seasonal_strength_week, size = volume) ) +
   geom_point() +
-  stat_density_2d(aes(fill = after_stat(nlevel)), geom = "polygon") +
-  facet_wrap(vars(dep_dest)) 
+  stat_density_2d(aes(fill = after_stat(nlevel)), geom = "polygon", alpha=0.2) +
+  facet_wrap(vars(dep)) +
+  scale_fill_viridis_c(option = "A")
+
+# TODO turn it 3d with library(rayshader)
+
 ```
 
 c'est vraiement beau, mais j'ai pas l'histoire a raconter avec...
