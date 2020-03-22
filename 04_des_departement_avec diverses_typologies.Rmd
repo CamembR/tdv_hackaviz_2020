@@ -18,7 +18,7 @@ library(fasster)
 # library(timetk)
 library(ggridges)
 library(ggrepel)
-library(plotly)
+# library(plotly)
 #devtools::install_github("CamembR/tdvhackaviz2020")
 library(tdvhackaviz2020)
 load(here("data/01_output.Rdata"))
@@ -32,6 +32,10 @@ On doit pouvoir separer les touristes des travailleurs
 # Les differences de saisonnalité sont elles réelles ? 
 On constate visuellement une faible saisonnalité sur la courbe du dep_31. Mais est-ce confirmé par le calcul, et est-ce le cas pour d'autres departements ?
 
+Il est d'usage pour quantifier la saisonnalite par rapport a la tendance d'une serie temporelle de comparer les forces de chacune de ces deux composantes. 
+On conidere de separer la serie des nuitees en 3 composantes : la variation hebdomadaire, la tendance qui est a peu de choses pres la constance de la semaine, et le residu qui ne rentre dans aucune des deux autres.
+C'est ce qu'on fait ici : sur l'axe des X, on trouvera a gauche les series a "faible" tendance, c'est a dire que la tendance est chahutee par la variation hebdomadaire et le residu, et a droite les "fortes" tendances: quand c'est la tendance qui prime. Sur l'axe des Y, Idem avec la force de variation hebdomadaire, qui est ici notre meilleur representant du tourisme organisé et aligné sur les jours de la semaine.
+
 ```{r}
 nuitees_stlf <-nuitee_ts %>%  features(nuitees, feat_stl)
 nuitees_stlf["cluster"] <- kmeans(nuitees_stlf %>% select(trend_strength, seasonal_strength_week),
@@ -39,34 +43,38 @@ nuitees_stlf["cluster"] <- kmeans(nuitees_stlf %>% select(trend_strength, season
 nuitees_stlf %>%
   ggplot(aes(x = trend_strength, y = seasonal_strength_week, label=dep, color=cluster)) +
   geom_point(size=3)+
-  geom_text_repel()+ggtitle("Comment distinguer les départements ?", subtitle = "Force de la composante hebdomadaire par rapport à de la composante lissée des nuitées dans chaque départements d'Occitanie (2018)")+
-  xlab("Force de la composante tendentielle") + 
+  geom_text_repel()+ggtitle("Comment distinguer les départements ?", subtitle = "Positionnement de la variation hebdomadaire par rapport à de la composante lissée des nuitées dans chaque départements d'Occitanie (2018)")+
+  xlab("Force de la composante tendantielle") + 
   ylab("Force de la variation hebdomadaire")
 ```
 
-Ah ! Oui ! la Haute Garonne se distingue bien largement de ses voisins d'Occitanie. Et les autres départements se repartissent naturellement (kMeans) en daux groupes.
+Ah ! Oui ! la Haute Garonne se distingue bien largement de ses voisins d'Occitanie. Et les autres départements se repartissent naturellement (kMeans, k=3) en deux groupes.
+Pour être parfaitement honnête, Il y a bien 2 autres groupes, mais quelques départements n'y sont pas rattachés ( le 65 et le 12), et sont considérés comme des électrons libres (par dbscan, epsilon=0.05, 2 points min.) car ils ne participent pas a une densite suffisante. On devra peut être revenir sur ce détail...
+
 
 # Regression a saisonnalité hebdromadaire
 
 Voyons dans les faits ce qu'on mesure par une visualisation de la décomposition sur chacun des groupes: 
 ```{r need rework, echo=FALSE}
-nuitees_stlmod <- nuitees_td %>%
+nuitees_stl_comp <- nuitees_td %>%
   as_tsibble(index= date, key=dep) %>% 
   group_by_key() %>%
   fill_gaps() %>% 
   ungroup %>% 
   tidyr::fill(nuitees, dep, .direction = "down") %>% 
-  model(STL(nuitees ~ season(7) ))
+  model(STL(nuitees ~ season(7) )) %>% 
+  components() %>% 
+  rename(composante_hebdomadaire = season_7) %>%
+  mutate(jour_sem = wday(date, label=T, locale = "fr_FR.UTF-8",week_start =1 ),
+         we = jour_sem %in% c("Sam","Dim"))
 ```
 C'est très curieux, le distingo s'établit à l'oeil sur la tendance, pas sur la composante hebdomadaire. 
 
 ```{r composante hebdomadaire en Haute-Garonne, echo=FALSE}
-nuite_seas31 <- components(nuitees_stlmod %>% filter(dep=="31")) %>%
-  select(date, composante_hebdomadaire = season_7) %>%
-  mutate(jour_sem = wday(date, label=T, locale = "fr_FR.UTF-8",week_start =1 ),
-         we = jour_sem %in% c("Sam","Dim"))
-
-autoplot(nuite_seas31, alpha=0.3, .vars = composante_hebdomadaire) +
+nuitees_stl_comp %>% 
+  filter(dep=="31") %>% 
+  select(date, composante_hebdomadaire, jour_sem, we) %>%
+  autoplot( alpha=0.3, .vars = composante_hebdomadaire) +
   geom_point(aes(x=date,y=composante_hebdomadaire, color=jour_sem, shape=we), size=3)+
   ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 31?", 
           subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers la Haute-Garonne") +
@@ -74,13 +82,12 @@ autoplot(nuite_seas31, alpha=0.3, .vars = composante_hebdomadaire) +
   theme_minimal()+
   scale_x_date(expand = c(0,0)) 
 ```
-```{r composante Hebdomadaire ds le 34, echo=FALSE}
-nuite_seas34 <- components(nuitees_stlmod %>% filter(dep=="34")) %>%
-  select(date, composante_hebdomadaire = season_7) %>%
-  mutate(jour_sem = wday(date, label=T, locale = "fr_FR.UTF-8" ,week_start =1),
-         we = jour_sem %in% c("Sam","Dim"))
 
-autoplot(nuite_seas34, alpha=0.3, .vars = composante_hebdomadaire) +
+```{r composante Hebdomadaire ds le 34, echo=FALSE}
+nuitees_stl_comp %>% 
+  filter(dep=="34") %>% 
+  select(date, composante_hebdomadaire, jour_sem, we) %>%
+  autoplot( alpha=0.3, .vars = composante_hebdomadaire) +
   geom_point(aes(x=date,y=composante_hebdomadaire, color=jour_sem, shape=we), size=3)+
   ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 34?", 
           subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers l'Hérault") +
@@ -91,12 +98,10 @@ autoplot(nuite_seas34, alpha=0.3, .vars = composante_hebdomadaire) +
 On voit très bien qu'il y a quelque chose à dire ici ! On a meme envie de balancer des small multiples sur chaque departement ! Ça donne meme envie de le faire sur chaque département d'origine, meme si ça risque de faire un pâté...
 
 ```{r composante Hebdomadaire ds le 81, echo=FALSE}
-nuite_seas81 <- components(nuitees_stlmod %>% filter(dep=="81")) %>%
-  select(date, composante_hebdomadaire = season_7) %>%
-  mutate(jour_sem = wday(date, label=T, locale = "fr_FR.UTF-8" ,week_start =1),
-         we = jour_sem %in% c("Sam","Dim"))
-
-autoplot(nuite_seas81, alpha=0.3, .vars = composante_hebdomadaire) +
+nuitees_stl_comp %>% 
+  filter(dep=="81") %>% 
+  select(date, composante_hebdomadaire, jour_sem, we) %>%
+  autoplot( alpha=0.3, .vars = composante_hebdomadaire) +
   geom_point(aes(x=date,y=composante_hebdomadaire, color=jour_sem, shape=we), size=3)+
   ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 81?", 
           subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers le Tarn-et-Garonne") +
@@ -106,12 +111,10 @@ autoplot(nuite_seas81, alpha=0.3, .vars = composante_hebdomadaire) +
 ```
 
 ```{r composante hebdomadaire en 11, echo=FALSE}
-nuite_seas11 <- components(nuitees_stlmod %>% filter(dep=="11")) %>%
-  select(date, composante_hebdomadaire = season_7) %>%
-  mutate(jour_sem = wday(date, label=T, locale = "fr_FR.UTF-8",week_start =1 ),
-         we = jour_sem %in% c("Sam","Dim"))
-
-autoplot(nuite_seas11, alpha=0.3, .vars = composante_hebdomadaire) +
+nuitees_stl_comp %>% 
+  filter(dep=="11") %>% 
+  select(date, composante_hebdomadaire, jour_sem, we) %>%
+  autoplot( alpha=0.3, .vars = composante_hebdomadaire) +
   geom_point(aes(x=date,y=composante_hebdomadaire, color=jour_sem, shape=we), size=3)+
   ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 11?", 
           subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers l'Aude") +
@@ -119,3 +122,45 @@ autoplot(nuite_seas11, alpha=0.3, .vars = composante_hebdomadaire) +
   theme_minimal()+
   scale_x_date(expand = c(0,0)) 
 ```
+# Aller, on passe au small-multiple sur chaque jour de la semaine
+```{r}
+nuitees_stl_comp %>% 
+  left_join(nuitees_stlf %>% select(dep,cluster), by="dep") %>% # on rapporte les cluster de k-means calcules plus haut
+  group_by(dep) %>%     # pour faire des lignes par departement, il faut des groupes
+  ggplot(aes(x=date,y=composante_hebdomadaire, color=dep))+
+  geom_line()+
+  # geom_area(data=vacances_tsbl()  %>% mutate(vacances = as.numeric(vacances) * max(nuitees_stl_comp$season_7)), 
+  #           aes(x = date, y = vacances),
+  #           position=position_dodge(1), alpha = 0.1) + # on ajoute les vacances
+  facet_grid(cols = vars(jour_sem), rows = vars(cluster))+
+  ylab(" composante_hebdomadaire\nDéparts majoritaires<------- | ---> Arrivées majoritaire")+
+  theme_minimal() + theme(legend.position="bottom") +
+  scale_x_date(expand = c(0.01,0.01)) 
+```
+Il y a trop de vide, c'est Montpellier qui nous fout dedans avec ses valeurs importantes, mais l'erreur est qu'on garde des valeurs quantitatives, alors qu'on porte un discours qualitatif. 
+Il faut nor-ma-lis-ser (petite musique de pub de vichy saint-yorre dans les 90', non? , bon tant-pis)
+
+# La meme en relatif
+Les courbes sont quantitatives, ca fausse le test statistique visuel, On passe en relatif (a la capacite d'hebergement)
+```{r}
+#TODO on normalise par departement ( on calcule les max)
+#nuites_hebdo_max <- nuitees_stl_comp %>% group_by(dep) %>% summarise(hebdo_max=max(composante_hebdomadaire))
+
+nuitees_stl_comp %>% 
+  group_by(dep) %>%     # pour faire des lignes par departement, il faut des groupes
+  mutate(composante_hebdomadaire_normalisee = composante_hebdomadaire/max(composante_hebdomadaire)) %>% 
+  left_join(nuitees_stlf %>% select(dep,cluster), by="dep") %>% # on rapporte les cluster de k-means calcules plus haut
+  ggplot(aes(x=date,y=composante_hebdomadaire_normalisee, color=dep))+
+  geom_line()+
+  # geom_area(data=vacances_tsbl()  %>% mutate(vacances = as.numeric(vacances) * max(nuitees_stl_comp$season_7)), 
+  #           aes(x = date, y = vacances),
+  #           position=position_dodge(1), alpha = 0.1) + # on ajoute les vacances
+  facet_grid(cols = vars(jour_sem), rows = vars(cluster))+
+  ylab(" composante_hebdomadaire\nDéparts majoritaires<------- | ---> Arrivées majoritaire")+
+  theme_minimal() + theme(legend.position="bottom") +
+  scale_x_date(expand = c(0.01,0.01)) 
+```
+  
+C'est mieux mais toujours pas terrible. 
+On commence à sentir ici que notre clustering est questionnable, certaines courbes mèriteraient de changer de groupe...
+Donc cet apres-midi : derniere chance d'amelioration visuelle: on ajoute une surface sous la courbe
