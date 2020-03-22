@@ -24,6 +24,13 @@ library(tdvhackaviz2020)
 load(here("data/01_output.Rdata"))
 theme_set(  theme_ipsum())+  theme_update(legend.position="bottom")
 ```
+
+```{r include=FALSE}
+# prepare data
+vacances <- vacances_tsbl()  %>% mutate(vacance = as.numeric(vacances))
+```
+
+
 # Sur la base des nuitées
 On doit pouvoir separer les touristes des travailleurs
 - entre saisonnalité annuelle et tendance
@@ -39,6 +46,7 @@ C'est ce qu'on fait ici : sur l'axe des X, on trouvera a gauche les series a "fa
 
 ```{r}
 nuitees_stlf <-nuitee_ts %>%  features(nuitees, feat_stl)
+set.seed(1973)
 nuitees_stlf["cluster"] <- kmeans(nuitees_stlf %>% select(trend_strength, seasonal_strength_week),
                                  centers=3)$cluster %>% as.factor
 nuitees_stlf %>%
@@ -67,17 +75,25 @@ nuitees_stl_comp <- nuitees_td %>%
   components() %>% 
   rename(composante_hebdomadaire = season_7) %>%
   mutate(jour_sem = wday(date, label=T, locale = "fr_FR.UTF-8",week_start =1 ),
-         we = jour_sem %in% c("Sam","Dim"))
+         we = jour_sem %in% c("Sam","Dim")) %>% 
+  group_by(dep) %>% 
+  mutate(max_hebdo = max(composante_hebdomadaire),
+         min_hebdo = min(composante_hebdomadaire)) %>% ungroup
 ```
 C'est très curieux, le distingo s'établit à l'oeil sur la tendance, pas sur la composante hebdomadaire. 
 
 ```{r composante hebdomadaire en Haute-Garonne, echo=FALSE}
 nuitees_stl_comp %>% 
   filter(dep=="31") %>% 
-  select(date, composante_hebdomadaire, jour_sem, we) %>%
   autoplot( alpha=0.2, .vars = composante_hebdomadaire) +
   # geom_point(aes(x=date,y=composante_hebdomadaire, color=jour_sem, shape=we), size=3)+ # avec forme differente pour les WE amene surcharge et confusion...
   geom_point(aes(x=date,y=composante_hebdomadaire, color=jour_sem), size=3)+
+  geom_area(data=vacances, 
+            aes(x = date, y = vacance * subset(nuitees_stl_comp, dep=="31", select=max_hebdo)[[1]]),
+            position=position_dodge(1), alpha = 0.1) +
+  geom_area(data=vacances, 
+            aes(x = date, y = vacance * subset(nuitees_stl_comp, dep=="31", select=min_hebdo)[[1]]),
+            position=position_dodge(1), alpha = 0.1)+
   ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 31?", 
           subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers la Haute-Garonne") +
   ylab(" composante_hebdomadaire des nuitées")+
@@ -87,9 +103,14 @@ nuitees_stl_comp %>%
 ```{r composante Hebdomadaire ds le 34, echo=FALSE}
 nuitees_stl_comp %>% 
   filter(dep=="34") %>% 
-  select(date, composante_hebdomadaire, jour_sem, we) %>%
   autoplot( alpha=0.3, .vars = composante_hebdomadaire) +
   geom_point(aes(x=date,y=composante_hebdomadaire, color=jour_sem), size=3)+
+  geom_area(data=vacances, 
+            aes(x = date, y = vacance * subset(nuitees_stl_comp, dep=="34", select=max_hebdo)[[1]]),
+            position=position_dodge(1), alpha = 0.1) +
+  geom_area(data=vacances, 
+            aes(x = date, y = vacance * subset(nuitees_stl_comp, dep=="34", select=min_hebdo)[[1]]),
+            position=position_dodge(1), alpha = 0.1)+
   ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 34?", 
           subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers l'Hérault") +
   ylab(" composante_hebdomadaire des nuitées")+
@@ -100,9 +121,14 @@ On voit très bien qu'il y a quelque chose à dire ici ! On a meme envie de bala
 ```{r composante Hebdomadaire ds le 81, echo=FALSE}
 nuitees_stl_comp %>% 
   filter(dep=="81") %>% 
-  select(date, composante_hebdomadaire, jour_sem, we) %>%
   autoplot( alpha=0.3, .vars = composante_hebdomadaire) +
   geom_point(aes(x=date,y=composante_hebdomadaire, color=jour_sem), size=3)+
+  geom_area(data=vacances, 
+            aes(x = date, y = vacance * subset(nuitees_stl_comp, dep=="81", select=max_hebdo)[[1]]),
+            position=position_dodge(1), alpha = 0.1) +
+  geom_area(data=vacances, 
+            aes(x = date, y = vacance * subset(nuitees_stl_comp, dep=="81", select=min_hebdo)[[1]]),
+            position=position_dodge(1), alpha = 0.1)+
   ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 81?", 
           subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers le Tarn-et-Garonne") +
   ylab(" composante_hebdomadaire des nuitées")+
@@ -112,9 +138,14 @@ nuitees_stl_comp %>%
 ```{r composante hebdomadaire en 11, echo=FALSE}
 nuitees_stl_comp %>% 
   filter(dep=="11") %>% 
-  select(date, composante_hebdomadaire, jour_sem, we) %>%
   autoplot( alpha=0.3, .vars = composante_hebdomadaire) +
   geom_point(aes(x=date,y=composante_hebdomadaire, color=jour_sem), size=3)+
+  geom_area(data=vacances, 
+            aes(x = date, y = vacance * subset(nuitees_stl_comp, dep=="11", select=max_hebdo)[[1]]),
+            position=position_dodge(1), alpha = 0.1) +
+  geom_area(data=vacances, 
+            aes(x = date, y = vacance * subset(nuitees_stl_comp, dep=="11", select=min_hebdo)[[1]]),
+            position=position_dodge(1), alpha = 0.1)+
   ggtitle("Sont-ils du week-end ou de la semaine quand ils viennent dans le 11?", 
           subtitle = "Influence du jour de semaine sur la composante hebdomadaire du deplacement vers l'Aude") +
   ylab(" composante_hebdomadaire des nuitées")+
@@ -172,8 +203,11 @@ nuitees_stl_comp %>%
   ggplot()+
   geom_area(aes(x=date,y=composante_hebdomadaire_normalisee, fill=dep), 
             position=position_dodge(1), alpha=0.3 , size=.5, colour="white")+
-  geom_area(data=vacances_tsbl()  %>% mutate(vacances = as.numeric(vacances)),
-            aes(x = date, y = vacances),
+  geom_area(data=vacances,
+            aes(x = date, y = vacance),
+            position=position_dodge(1), alpha = 0.1) +
+  geom_area(data=vacances,
+            aes(x = date, y = -vacance),
             position=position_dodge(1), alpha = 0.1) + # on ajoute les vacances
   facet_grid(cols = vars(jour_sem), rows = vars(cluster))+
   ylab(" composante_hebdomadaire des nuitées")+
