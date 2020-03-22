@@ -15,10 +15,9 @@ library(feasts)
 library(fable)
 library(fabletools)
 library(fasster)
-# library(timetk)
 library(ggridges)
 library(ggrepel)
-# library(plotly)
+library(hrbrthemes)
 #devtools::install_github("CamembR/tdvhackaviz2020")
 library(tdvhackaviz2020)
 load(here("data/01_output.Rdata"))
@@ -143,8 +142,8 @@ Il faut nor-ma-lis-ser (petite musique de pub de vichy saint-yorre dans les 90',
 # La meme en relatif
 Les courbes sont quantitatives, ca fausse le test statistique visuel, On passe en relatif (a la capacite d'hebergement)
 ```{r}
-#TODO on normalise par departement ( on calcule les max)
-#nuites_hebdo_max <- nuitees_stl_comp %>% group_by(dep) %>% summarise(hebdo_max=max(composante_hebdomadaire))
+# on normalise par departement ( on calcule les max)
+#composante_hebdomadaire_normalisee = composante_hebdomadaire/max(composante_hebdomadaire)
 
 nuitees_stl_comp %>% 
   group_by(dep) %>%     # pour faire des lignes par departement, il faut des groupes
@@ -164,3 +163,22 @@ nuitees_stl_comp %>%
 C'est mieux mais toujours pas terrible. 
 On commence à sentir ici que notre clustering est questionnable, certaines courbes mèriteraient de changer de groupe...
 Donc cet apres-midi : derniere chance d'amelioration visuelle: on ajoute une surface sous la courbe
+
+```{r}
+# on normalise par departement ( on calcule les max)
+#composante_hebdomadaire_normalisee = composante_hebdomadaire/max(composante_hebdomadaire)
+
+nuitees_stl_comp %>% 
+  group_by(dep) %>%     # pour faire des lignes par departement, il faut des groupes
+  mutate(composante_hebdomadaire_normalisee = composante_hebdomadaire/max(composante_hebdomadaire)) %>% 
+  left_join(nuitees_stlf %>% select(dep,cluster), by="dep") %>% # on rapporte les cluster de k-means calcules plus haut
+  ggplot(aes(x=date,y=composante_hebdomadaire_normalisee, fill=dep))+
+  geom_area(position=position_dodge(1), alpha=0.3 , size=.5, colour="white")+
+  # geom_area(data=vacances_tsbl()  %>% mutate(vacances = as.numeric(vacances) * max(nuitees_stl_comp$season_7)), 
+  #           aes(x = date, y = vacances),
+  #           position=position_dodge(1), alpha = 0.1) + # on ajoute les vacances
+  facet_grid(cols = vars(jour_sem), rows = vars(cluster))+
+  ylab(" composante_hebdomadaire\nDéparts majoritaires<------- | ---> Arrivées majoritaire")+
+  theme_minimal() + theme(legend.position="bottom") +
+  scale_x_date(expand = c(0.01,0.01)) 
+```
