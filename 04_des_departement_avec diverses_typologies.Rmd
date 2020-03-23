@@ -116,6 +116,7 @@ nuitees_stl_comp %>%
   ylab(" composante_hebdomadaire des nuitées")+
   scale_x_date(expand = c(0,0), date_breaks = "1 months", date_labels = "%b") 
 ```
+
 On voit très bien qu'il y a quelque chose à dire ici ! On a meme envie de balancer des small multiples sur chaque departement ! Ça donne meme envie de le faire sur chaque département d'origine, meme si ça risque de faire un pâté...
 
 ```{r composante Hebdomadaire ds le 81, echo=FALSE}
@@ -151,7 +152,8 @@ nuitees_stl_comp %>%
   ylab(" composante_hebdomadaire des nuitées")+
   scale_x_date(expand = c(0,0), date_breaks = "1 months", date_labels = "%b") 
 ```
-# Aller, on passe au small-multiple sur chaque jour de la semaine
+
+# Allez, on passe au small-multiple sur chaque jour de la semaine
 ```{r}
 nuitees_stl_comp %>% 
   left_join(nuitees_stlf %>% select(dep,cluster), by="dep") %>% # on rapporte les cluster de k-means calcules plus haut

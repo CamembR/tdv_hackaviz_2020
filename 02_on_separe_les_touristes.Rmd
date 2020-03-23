@@ -22,6 +22,8 @@ library(plotly)
 #devtools::install_github("CamembR/tdvhackaviz2020")
 library(tdvhackaviz2020)
 load(here("data/01_output.Rdata"))
+theme_set(  hrbrthemes::theme_ipsum())+  theme_update(legend.position="bottom")
+
 ```
 # Sur la base des nuitées
 On doit pouvoir separer les touristes des travailleurs
@@ -42,20 +44,6 @@ nuitees_ts_filled <- nuitees_td %>%
   fill_gaps() %>% 
   ungroup %>% 
   tidyr::fill(nuitees, dep, .direction = "down") 
-```
-
-
-```{r eval=FALSE, include=FALSE}
-# TODO Modele naif sur chaque departement
-nuitee_touriste <- nuitees_ts_filled %>% 
-    model(
-      hybrid = decomposition_model(
-        STL( nuitees ~ season(window = 7)),
-        ETS(trend + remainder),
-        SNAIVE(season_week)
-      )
-    ) 
-autoplot(nuitee_touriste)
 ```
 
 
@@ -98,7 +86,7 @@ nuitees_stlmod %>%
 ```
 C'est très curieux, le distingo s'établit à l'oeil sur la tendance, pas sur la composante hebdomadaire. 
 
-Pour pouvoir dire "Cette serie c'est -majoritairement- des travailleurs" Il faudrait avoir un pattern du genre celui-ci ![https://slides.mitchelloharawild.com/user2019/#10](https://slides.mitchelloharawild.com/user2019/figure/tourism-purpose-plot-output-1.svg)  
+Pour pouvoir dire "Cette serie c'est -majoritairement- des travailleurs" Il faudrait avoir un pattern du genre celui-ci [https://slides.mitchelloharawild.com/user2019/#10]  
 i.e. avec une influence négative des weekends, qund les usages des déplacements sont clairement séparés.. Ici, qqsoit la série, c'est un mélange...
 
 ```{r composante hebdomadaire en Haute-Garonne, echo=FALSE}
@@ -181,19 +169,42 @@ origines_feats %>%
 ```
 
 c'est vraiement beau, mais j'ai pas l'histoire a raconter avec...
+
+# Cherchons une saisonnalite plus longue
+
+On duplique artificiellement la serie sur 5 ans et on cherche des saisonnalites plus longues
+```{r include=FALSE}
+# creons une serie de 5 ans qui nous donnera ses saisonnalites
+base_hebergement <- as_tibble(hebergement_ts) %>% filter(semaine<=52)
+heberg_ts_5ans <- bind_rows(base_hebergement%>% mutate(semaine = yearweek(date)),
+                       base_hebergement %>% mutate(date=date+ dyears(1), 
+                                                   semaine = yearweek(date)),
+                       base_hebergement %>% mutate(date=date+ dyears(2), 
+                                                   semaine = yearweek(date)),
+                       base_hebergement %>% mutate(date=date+ dyears(3), 
+                                                   semaine = yearweek(date)),
+                       base_hebergement %>% mutate(date=date+ dyears(4), 
+                                                   semaine = yearweek(date)),
+                       ) %>% 
+  as_tsibble(index = semaine, key= dep )
+autoplot(heberg_ts_5ans, .vars = touristes/1e5)
+```
+
 ```{r}
+heberg_stl_5y <- heberg_ts_5ans %>% 
+  model(STL(touristes ~ season(period="1 month") ))
+
+heberg_stl_5y %>%
+  components() %>%
+#  filter(semaine<=yearweek("2018 W52")) %>% 
+  autoplot(.vars = touristes) + 
+  theme(legend.position = "bottom") + 
+  scale_x_date(expand = c(0,0))
 
 ```
+Il y a un truc interessant au mois de Mai, avec un comportement different des differents departements, mais pas le tempos de creuser ici... 
 
 
-```{r eval=FALSE, include=FALSE}
-# la grosse berta : on entraine 1384 modeles de forcasting
-fit <- origines_ts %>% filter(dep_org!="Autres") %>%
-  model(
-    ets = ETS(volume ~ trend("A")),
-    # arima = ARIMA(volume),
-    stl = STL(volume ~ season(window = Inf))
-  )
-fit
 
-```
+
+
